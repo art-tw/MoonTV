@@ -102,7 +102,7 @@ export default function VideoCard({
         const fav = await isFavorited(source, id);
         setFavorited(fav);
       } catch (err) {
-        throw new Error('检查收藏状态失败');
+        throw new Error('讀取收藏狀態失敗');
       }
     })();
   }, [source, id]);
@@ -129,7 +129,7 @@ export default function VideoCard({
       if (isDeleting) {
         setIsDeleting(false);
       }
-      throw new Error('切换收藏状态失败');
+      throw new Error('更改收藏狀態失敗');
     }
   };
 
@@ -144,7 +144,7 @@ export default function VideoCard({
       await deletePlayRecord(source, id);
       onDelete?.();
     } catch (err) {
-      throw new Error('删除播放记录失败');
+      throw new Error('刪除播放記錄失敗');
     }
   };
 

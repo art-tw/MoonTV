@@ -39,7 +39,7 @@ export default function AuthProvider({ children }: Props) {
         body: JSON.stringify({ password, username }),
       });
 
-      if (!res.ok) throw new Error('认证失败');
+      if (!res.ok) throw new Error('驗證失敗');
 
       setIsAuthenticated(true);
     } catch (error) {
@@ -70,7 +70,7 @@ export default function AuthProvider({ children }: Props) {
             <div className='animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-green-500' />
           </div>
           <p className='text-gray-700 dark:text-gray-300 font-medium text-lg text-center'>
-            正在验证您的身份，请稍候...
+            驗證中，請稍後...
           </p>
         </div>
       </div>

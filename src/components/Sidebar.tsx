@@ -138,12 +138,17 @@ const Sidebar = ({ onToggle, activePath = '/' }: SidebarProps) => {
   const menuItems = [
     {
       icon: Film,
-      label: '热门电影',
+      label: '熱門電影',
       href: '/douban?type=movie&tag=热门&title=热门电影',
+    },
+	{
+      icon: Film,
+      label: '台灣電影',
+      href: '/douban?type=movie&tag=台湾',
     },
     {
       icon: Tv,
-      label: '热门剧集',
+      label: '熱門劇集',
       href: '/douban?type=tv&tag=热门&title=热门剧集',
     },
     {
@@ -153,27 +158,18 @@ const Sidebar = ({ onToggle, activePath = '/' }: SidebarProps) => {
     },
     {
       icon: Clover,
-      label: '综艺',
+      label: '綜藝',
       href: '/douban?type=tv&tag=综艺&title=综艺',
     },
-    { icon: Swords, label: '美剧', href: '/douban?type=tv&tag=美剧' },
+    { icon: Swords, label: '美劇', href: '/douban?type=tv&tag=美剧' },
     {
       icon: MessageCircleHeart,
-      label: '韩剧',
+      label: '韓劇',
       href: '/douban?type=tv&tag=韩剧',
     },
-    { icon: MountainSnow, label: '日剧', href: '/douban?type=tv&tag=日剧' },
-    { icon: VenetianMask, label: '日漫', href: '/douban?type=tv&tag=日本动画' },
+    { icon: MountainSnow, label: '日劇', href: '/douban?type=tv&tag=日剧' },
+    { icon: VenetianMask, label: '陸劇', href: '/douban?type=movie&tag=中国' }
   ];
-
-  const { siteName } = useSite();
-  if (siteName !== 'MoonTV') {
-    menuItems.push({
-      icon: Github,
-      label: 'MoonTV',
-      href: 'https://github.com/senshinya/MoonTV',
-    });
-  }
 
   return (
     <SidebarContext.Provider value={contextValue}>
@@ -226,7 +222,7 @@ const Sidebar = ({ onToggle, activePath = '/' }: SidebarProps) => {
                 </div>
                 {!isCollapsed && (
                   <span className='whitespace-nowrap transition-opacity duration-200 opacity-100'>
-                    首页
+                    首頁
                   </span>
                 )}
               </Link>
@@ -247,7 +243,7 @@ const Sidebar = ({ onToggle, activePath = '/' }: SidebarProps) => {
                 </div>
                 {!isCollapsed && (
                   <span className='whitespace-nowrap transition-opacity duration-200 opacity-100'>
-                    搜索
+                    搜尋
                   </span>
                 )}
               </Link>
