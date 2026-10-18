@@ -1,21 +1,22 @@
 /* eslint-disable @typescript-eslint/no-explicit-any,no-console */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
-import { getAuthInfoFromCookie } from '@/lib/auth';
 import { getConfig } from '@/lib/config';
-import { db } from '@/lib/db';
+import { getStorage, IStorage } from '@/lib/db';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 // 支持的操作类型
-type Action = 'add' | 'disable' | 'enable' | 'delete' | 'sort' | 'batch_disable' | 'batch_enable' | 'batch_delete';
+type Action = 'add' | 'disable' | 'enable' | 'delete' | 'sort';
 
 interface BaseBody {
+  username?: string;
+  password?: string;
   action?: Action;
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
   if (storageType === 'localstorage') {
     return NextResponse.json(
@@ -28,30 +29,46 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = (await request.json()) as BaseBody & Record<string, any>;
-    const { action } = body;
 
-    const authInfo = getAuthInfoFromCookie(request);
-    if (!authInfo || !authInfo.username) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    const username = authInfo.username;
+    const { username, password, action } = body;
 
     // 基础校验
-    const ACTIONS: Action[] = ['add', 'disable', 'enable', 'delete', 'sort', 'batch_disable', 'batch_enable', 'batch_delete'];
-    if (!username || !action || !ACTIONS.includes(action)) {
+    const ACTIONS: Action[] = ['add', 'disable', 'enable', 'delete', 'sort'];
+    if (!username || !password || !action || !ACTIONS.includes(action)) {
       return NextResponse.json({ error: '参数格式错误' }, { status: 400 });
     }
 
     // 获取配置与存储
-    const adminConfig = await getConfig();
+    const adminConfig = getConfig();
+    const storage: IStorage | null = getStorage();
 
     // 权限与身份校验
-    if (username !== process.env.USERNAME) {
+    if (username === process.env.USERNAME) {
+      if (password !== process.env.PASSWORD) {
+        return NextResponse.json(
+          { error: '用户名或密码错误' },
+          { status: 401 }
+        );
+      }
+    } else {
       const userEntry = adminConfig.UserConfig.Users.find(
         (u) => u.username === username
       );
-      if (!userEntry || userEntry.role !== 'admin' || userEntry.banned) {
+      if (!userEntry || userEntry.role !== 'admin') {
         return NextResponse.json({ error: '权限不足' }, { status: 401 });
+      }
+      if (!storage || typeof storage.verifyUser !== 'function') {
+        return NextResponse.json(
+          { error: '存储未配置用户认证' },
+          { status: 500 }
+        );
+      }
+      const pass = await storage.verifyUser(username, password);
+      if (!pass) {
+        return NextResponse.json(
+          { error: '用户名或密码错误' },
+          { status: 401 }
+        );
       }
     }
 
@@ -111,88 +128,6 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: '该源不可删除' }, { status: 400 });
         }
         adminConfig.SourceConfig.splice(idx, 1);
-
-        // 检查并清理用户组和用户的权限数组
-        // 清理用户组权限
-        if (adminConfig.UserConfig.Tags) {
-          adminConfig.UserConfig.Tags.forEach(tag => {
-            if (tag.enabledApis) {
-              tag.enabledApis = tag.enabledApis.filter(api => api !== key);
-            }
-          });
-        }
-
-        // 清理用户权限
-        adminConfig.UserConfig.Users.forEach(user => {
-          if (user.enabledApis) {
-            user.enabledApis = user.enabledApis.filter(api => api !== key);
-          }
-        });
-        break;
-      }
-      case 'batch_disable': {
-        const { keys } = body as { keys?: string[] };
-        if (!Array.isArray(keys) || keys.length === 0) {
-          return NextResponse.json({ error: '缺少 keys 参数或为空' }, { status: 400 });
-        }
-        keys.forEach(key => {
-          const entry = adminConfig.SourceConfig.find((s) => s.key === key);
-          if (entry) {
-            entry.disabled = true;
-          }
-        });
-        break;
-      }
-      case 'batch_enable': {
-        const { keys } = body as { keys?: string[] };
-        if (!Array.isArray(keys) || keys.length === 0) {
-          return NextResponse.json({ error: '缺少 keys 参数或为空' }, { status: 400 });
-        }
-        keys.forEach(key => {
-          const entry = adminConfig.SourceConfig.find((s) => s.key === key);
-          if (entry) {
-            entry.disabled = false;
-          }
-        });
-        break;
-      }
-      case 'batch_delete': {
-        const { keys } = body as { keys?: string[] };
-        if (!Array.isArray(keys) || keys.length === 0) {
-          return NextResponse.json({ error: '缺少 keys 参数或为空' }, { status: 400 });
-        }
-        // 过滤掉 from=config 的源，但不报错
-        const keysToDelete = keys.filter(key => {
-          const entry = adminConfig.SourceConfig.find((s) => s.key === key);
-          return entry && entry.from !== 'config';
-        });
-
-        // 批量删除
-        keysToDelete.forEach(key => {
-          const idx = adminConfig.SourceConfig.findIndex((s) => s.key === key);
-          if (idx !== -1) {
-            adminConfig.SourceConfig.splice(idx, 1);
-          }
-        });
-
-        // 检查并清理用户组和用户的权限数组
-        if (keysToDelete.length > 0) {
-          // 清理用户组权限
-          if (adminConfig.UserConfig.Tags) {
-            adminConfig.UserConfig.Tags.forEach(tag => {
-              if (tag.enabledApis) {
-                tag.enabledApis = tag.enabledApis.filter(api => !keysToDelete.includes(api));
-              }
-            });
-          }
-
-          // 清理用户权限
-          adminConfig.UserConfig.Users.forEach(user => {
-            if (user.enabledApis) {
-              user.enabledApis = user.enabledApis.filter(api => !keysToDelete.includes(api));
-            }
-          });
-        }
         break;
       }
       case 'sort': {
@@ -224,7 +159,9 @@ export async function POST(request: NextRequest) {
     }
 
     // 持久化到存储
-    await db.saveAdminConfig(adminConfig);
+    if (storage && typeof (storage as any).setAdminConfig === 'function') {
+      await (storage as any).setAdminConfig(adminConfig);
+    }
 
     return NextResponse.json(
       { ok: true },

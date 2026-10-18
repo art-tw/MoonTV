@@ -1,17 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
-import { getAuthInfoFromCookie } from '@/lib/auth';
 import { getAvailableApiSites, getCacheTime } from '@/lib/config';
 import { getDetailFromApi } from '@/lib/downstream';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
-export async function GET(request: NextRequest) {
-  const authInfo = getAuthInfoFromCookie(request);
-  if (!authInfo || !authInfo.username) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
   const sourceCode = searchParams.get('source');
@@ -25,22 +19,19 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const apiSites = await getAvailableApiSites(authInfo.username);
+    const apiSites = getAvailableApiSites();
     const apiSite = apiSites.find((site) => site.key === sourceCode);
 
     if (!apiSite) {
       return NextResponse.json({ error: '无效的API来源' }, { status: 400 });
     }
 
-    const result = await getDetailFromApi(apiSite, id);
-    const cacheTime = await getCacheTime();
+    const result = await getDetailFromApi(apiSite, sourceCode);
+    const cacheTime = getCacheTime();
 
     return NextResponse.json(result, {
       headers: {
-        'Cache-Control': `public, max-age=${cacheTime}, s-maxage=${cacheTime}`,
-        'CDN-Cache-Control': `public, s-maxage=${cacheTime}`,
-        'Vercel-CDN-Cache-Control': `public, s-maxage=${cacheTime}`,
-        'Netlify-Vary': 'query',
+        'Cache-Control': `public, max-age=${cacheTime}`,
       },
     });
   } catch (error) {

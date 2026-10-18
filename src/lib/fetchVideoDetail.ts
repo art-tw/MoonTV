@@ -3,6 +3,20 @@ import { SearchResult } from '@/lib/types';
 
 import { getDetailFromApi, searchFromApi } from './downstream';
 
+export interface VideoDetail {
+  id: string;
+  title: string;
+  poster: string;
+  episodes: string[];
+  source: string;
+  source_name: string;
+  class?: string;
+  year: string;
+  desc?: string;
+  type_name?: string;
+  douban_id?: number;
+}
+
 interface FetchVideoDetailOptions {
   source: string;
   id: string;
@@ -18,9 +32,9 @@ export async function fetchVideoDetail({
   source,
   id,
   fallbackTitle = '',
-}: FetchVideoDetailOptions): Promise<SearchResult> {
+}: FetchVideoDetailOptions): Promise<VideoDetail> {
   // 优先通过搜索接口查找精确匹配
-  const apiSites = await getAvailableApiSites();
+  const apiSites = getAvailableApiSites();
   const apiSite = apiSites.find((site) => site.key === source);
   if (!apiSite) {
     throw new Error('无效的API来源');
@@ -34,7 +48,19 @@ export async function fetchVideoDetail({
           item.id.toString() === id.toString()
       );
       if (exactMatch) {
-        return exactMatch;
+        return {
+          id: exactMatch.id,
+          title: exactMatch.title,
+          poster: exactMatch.poster,
+          episodes: exactMatch.episodes,
+          source: exactMatch.source,
+          source_name: exactMatch.source_name,
+          class: exactMatch.class,
+          year: exactMatch.year,
+          desc: exactMatch.desc,
+          type_name: exactMatch.type_name,
+          douban_id: exactMatch.douban_id,
+        } as VideoDetail;
       }
     } catch (error) {
       // do nothing
@@ -43,9 +69,17 @@ export async function fetchVideoDetail({
 
   // 调用 /api/detail 接口
   const detail = await getDetailFromApi(apiSite, id);
-  if (!detail) {
-    throw new Error('获取视频详情失败');
-  }
 
-  return detail;
+  return {
+    id: detail.videoInfo.id,
+    title: detail.videoInfo.title,
+    poster: detail.videoInfo.cover || '',
+    episodes: detail.episodes,
+    source: detail.videoInfo.source,
+    source_name: detail.videoInfo.source_name,
+    class: detail.videoInfo.remarks,
+    year: detail.videoInfo.year || '',
+    desc: detail.videoInfo.desc,
+    type_name: detail.videoInfo.type,
+  };
 }
