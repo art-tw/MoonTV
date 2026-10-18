@@ -4,7 +4,11 @@
 import { useEffect, useState } from 'react';
 
 import type { PlayRecord } from '@/lib/db.client';
-import { clearAllPlayRecords, getAllPlayRecords } from '@/lib/db.client';
+import {
+  clearAllPlayRecords,
+  getAllPlayRecords,
+  subscribeToDataUpdates,
+} from '@/lib/db.client';
 
 import ScrollableRow from '@/components/ScrollableRow';
 import VideoCard from '@/components/VideoCard';
@@ -19,30 +23,32 @@ export default function ContinueWatching({ className }: ContinueWatchingProps) {
   >([]);
   const [loading, setLoading] = useState(true);
 
+  // 处理播放记录数据更新的函数
+  const updatePlayRecords = (allRecords: Record<string, PlayRecord>) => {
+    // 将记录转换为数组并根据 save_time 由近到远排序
+    const recordsArray = Object.entries(allRecords).map(([key, record]) => ({
+      ...record,
+      key,
+    }));
+
+    // 按 save_time 降序排序（最新的在前面）
+    const sortedRecords = recordsArray.sort(
+      (a, b) => b.save_time - a.save_time
+    );
+
+    setPlayRecords(sortedRecords);
+  };
+
   useEffect(() => {
     const fetchPlayRecords = async () => {
       try {
         setLoading(true);
 
-        // 从 localStorage 获取所有播放记录
+        // 从缓存或API获取所有播放记录
         const allRecords = await getAllPlayRecords();
-
-        // 将记录转换为数组并根据 save_time 由近到远排序
-        const recordsArray = Object.entries(allRecords).map(
-          ([key, record]) => ({
-            ...record,
-            key,
-          })
-        );
-
-        // 按 save_time 降序排序（最新的在前面）
-        const sortedRecords = recordsArray.sort(
-          (a, b) => b.save_time - a.save_time
-        );
-
-        setPlayRecords(sortedRecords);
+        updatePlayRecords(allRecords);
       } catch (error) {
-        console.error('讀取播放記錄失敗:', error);
+        console.error('获取播放记录失败:', error);
         setPlayRecords([]);
       } finally {
         setLoading(false);
@@ -50,6 +56,16 @@ export default function ContinueWatching({ className }: ContinueWatchingProps) {
     };
 
     fetchPlayRecords();
+
+    // 监听播放记录更新事件
+    const unsubscribe = subscribeToDataUpdates(
+      'playRecordsUpdated',
+      (newRecords: Record<string, PlayRecord>) => {
+        updatePlayRecords(newRecords);
+      }
+    );
+
+    return unsubscribe;
   }, []);
 
   // 如果没有播放记录，则不渲染组件
@@ -73,7 +89,7 @@ export default function ContinueWatching({ className }: ContinueWatchingProps) {
     <section className={`mb-8 ${className || ''}`}>
       <div className='mb-4 flex items-center justify-between'>
         <h2 className='text-xl font-bold text-gray-800 dark:text-gray-200'>
-          繼續觀看
+          继续观看
         </h2>
         {!loading && playRecords.length > 0 && (
           <button
@@ -120,11 +136,14 @@ export default function ContinueWatching({ className }: ContinueWatchingProps) {
                     progress={getProgress(record)}
                     episodes={record.total_episodes}
                     currentEpisode={record.index}
+                    query={record.search_title}
+                    from='playrecord'
                     onDelete={() =>
                       setPlayRecords((prev) =>
                         prev.filter((r) => r.key !== record.key)
                       )
                     }
+                    type={record.total_episodes > 1 ? 'tv' : ''}
                   />
                 </div>
               );
